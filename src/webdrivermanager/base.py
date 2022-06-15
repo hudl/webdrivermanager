@@ -139,10 +139,6 @@ class WebDriverManagerBase:
     def get_driver_filename(self):
         return self.driver_filenames[self.os_name]
 
-    def get_mac_cpu_type(self):
-        # Identify mac CPU type, refer to https://stackoverflow.com/questions/65970469/what-does-platform-system-and-platform-architecture-return-on-apple-m1-silic
-        return "m1" if platform.processor() is "arm" else "intel" if self.os_name == "mac" else ""
-
     def _parse_version(self, version):
         method = version.strip().lower()
 
@@ -177,25 +173,33 @@ class WebDriverManagerBase:
 
         return version  # noqa: R504
 
+    def get_mac_cpu_type(self):
+        # Identify mac CPU type, refer to https://stackoverflow.com/questions/65970469/what-does-platform-system-and-platform-architecture-return-on-apple-m1-silic
+        return "arm" if platform.processor() == "arm" else "intel" if self.os_name == "mac" else ""
+
     def _parse_github_api_response(self, version, response):
-        filenames = [asset["name"] for asset in response.json()["assets"]]
-        filename = [name for name in filenames if self.os_name in name]
-        mac_cpu_type = self.get_mac_cpu_type()
-        
-        if not filename:
-            raise_runtime_error(f"Error, unable to find a download for os: {self.os_name}")
+        all_filenames = [asset["name"] for asset in response.json()["assets"]]
+        os_filenames = [name for name in all_filenames if self.os_name in name]
 
-        if len(filename) > 1:
-            if self.os_name is "mac":
-                filename = [name for name in filenames if "aarch64" in name] if mac_cpu_type is "arm" else [name for name in filenames if "aarch64" not in name]
+        if not os_filenames:
+            raise_runtime_error("Error, unable to find a download for os: {0}".format(self.os_name))
+
+        mac_cpu_type = ""
+        if len(os_filenames) > 1:
+            if self.os_name == "mac":
+                mac_cpu_type = self.get_mac_cpu_type()
+                arch_filenames = [name for name in os_filenames if "aarch64" in name] if mac_cpu_type == "arm" else [name for name in os_filenames if "aarch64" not in name]
             else:
-                filename = [name for name in filenames if self.os_name + self.bitness in name and not name.endswith(".asc")]
-                if len(filename) != 1:
-                    raise_runtime_error(f"Error, unable to determine correct filename for {self.bitness}bit {self.os_name}")
+                arch_filenames = [name for name in os_filenames if self.os_name + self.bitness in name and not name.endswith(".asc")]
 
-        filename = filename[0]
+            if len(arch_filenames) != 1:
+                raise_runtime_error(f"Error, unable to determine correct filename for {self.bitness}bit {self.os_name} {mac_cpu_type}")
 
-        url = response.json()["assets"][filenames.index(filename)]["browser_download_url"]
+            filename = arch_filenames[0]
+        else:
+            filename = os_filenames[0]
+
+        url = response.json()["assets"][all_filenames.index(filename)]["browser_download_url"]
         LOGGER.info("Download URL: %s", url)
         return url
 
