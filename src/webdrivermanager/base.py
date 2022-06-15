@@ -178,27 +178,29 @@ class WebDriverManagerBase:
         return "arm" if platform.processor() == "arm" else "intel" if self.os_name == "mac" else ""
 
     def _parse_github_api_response(self, version, response):
-        all_filenames = [asset['name'] for asset in response.json()['assets']]
+        all_filenames = [asset["name"] for asset in response.json()["assets"]]
         os_filenames = [name for name in all_filenames if self.os_name in name]
 
         if not os_filenames:
-            raise_runtime_error('Error, unable to find a download for os: {0}'.format(self.os_name))
+            raise_runtime_error("Error, unable to find a download for os: {0}".format(self.os_name))
 
+        mac_cpu_type = ""
         if len(os_filenames) > 1:
             if self.os_name == "mac":
                 mac_cpu_type = self.get_mac_cpu_type()
                 arch_filenames = [name for name in os_filenames if "aarch64" in name] if mac_cpu_type == "arm" else [name for name in os_filenames if "aarch64" not in name]
             else:
                 arch_filenames = [name for name in os_filenames if self.os_name + self.bitness in name and not name.endswith(".asc")]
-                if len(arch_filenames) != 1:
-                    raise_runtime_error(f"Error, unable to determine correct filename for {self.bitness}bit {self.os_name}")
+
+            if len(arch_filenames) != 1:
+                raise_runtime_error(f"Error, unable to determine correct filename for {self.bitness}bit {self.os_name} {mac_cpu_type}")
 
             filename = arch_filenames[0]
         else:
             filename = os_filenames[0]
 
-        url = response.json()['assets'][all_filenames.index(filename)]['browser_download_url']
-        LOGGER.info('Download URL: %s', url)
+        url = response.json()["assets"][all_filenames.index(filename)]["browser_download_url"]
+        LOGGER.info("Download URL: %s", url)
         return url
 
     def _parse_github_page(self, version):
